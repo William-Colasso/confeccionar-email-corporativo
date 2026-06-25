@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gerador de Assinaturas de E-mail</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Gerador de Assinaturas de E-mail Corporativo</h1>
+    <p class="subtitle">Template MJML/HTML + planilha Excel/CSV → assinatura pronta para o Outlook</p>
+  </header>
+
+  <main>
+    <!-- Passo 1: Template -->
+    <section class="step" id="step-template">
+      <h2><span class="badge">1</span> Template</h2>
+      <p>Envie o arquivo <code>.mjml</code> ou <code>.html</code>. Use campos no formato
+        <code>{{nome}}</code>, <code>{{cargo}}</code>, etc.</p>
+      <input type="file" id="template-file" accept=".mjml,.html,.htm" />
+      <button id="btn-template">Carregar template</button>
+      <div class="result" id="template-result"></div>
+    </section>
+
+    <!-- Passo 2: Planilha -->
+    <section class="step disabled" id="step-data">
+      <h2><span class="badge">2</span> Planilha</h2>
+      <p>Envie a planilha <code>.xlsx</code> ou <code>.csv</code>. Os cabeçalhos das colunas
+        serão casados com os campos do template.</p>
+      <input type="file" id="data-file" accept=".xlsx,.xls,.csv" disabled />
+      <button id="btn-data" disabled>Carregar planilha</button>
+      <div class="result" id="data-result"></div>
+    </section>
+
+    <!-- Passo 3: Assinaturas -->
+    <section class="step disabled" id="step-render">
+      <h2><span class="badge">3</span> Assinaturas</h2>
+
+      <div class="render-controls">
+        <label>Coluna usada como nome:
+          <select id="label-column"></select>
+        </label>
+        <button id="btn-render" disabled>Gerar assinaturas</button>
+      </div>
+
+      <div class="render-views" id="render-views" hidden>
+        <div class="individual">
+          <h3>Visualização individual</h3>
+          <label>Colaborador:
+            <select id="individual-select"></select>
+          </label>
+          <button class="copy" id="btn-copy-individual">Copiar assinatura</button>
+          <div class="preview-large" id="preview-large"></div>
+        </div>
+
+        <div class="list">
+          <h3>Todos os colaboradores</h3>
+          <div class="signature-list" id="signature-list"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+<mjml>
+  <mj-body background-color="#ffffff">
+    <mj-section padding="0">
+      <mj-column width="100%">
+        <mj-text font-family="Arial, sans-serif" font-size="14px" color="#1f2933" line-height="20px">
+          <strong style="font-size:16px;color:#2563eb;">{{nome}}</strong><br/>
+          {{cargo}}<br/>
+          <span style="color:#6b7280;">Empresa Exemplo Ltda.</span>
+        </mj-text>
+        <mj-text font-family="Arial, sans-serif" font-size="13px" color="#6b7280" line-height="18px">
+          ✉ {{email}}<br/>
+          ☎ {{telefone}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>
