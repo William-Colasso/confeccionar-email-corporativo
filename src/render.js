@@ -1,6 +1,6 @@
-'use strict';
+// Casa colunas da planilha com os placeholders do template e preenche o HTML.
 
-const { PLACEHOLDER_RE } = require('./template');
+import { PLACEHOLDER_RE } from './template.js';
 
 // Normaliza um nome para casar coluna x placeholder:
 // minúsculas, sem acentos, só alfanuméricos.
@@ -34,26 +34,33 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-// Preenche o template HTML para uma linha, usando o mapeamento
-// placeholder -> coluna. Valores ausentes viram string vazia.
-function fillTemplate(html, row, mapping) {
+// Resolve uma linha da planilha em valores por placeholder (placeholder -> valor
+// bruto), aplicando o mapeamento. É só isto que guardamos no share — não o HTML
+// renderizado. Valores ausentes viram string vazia.
+function resolveValues(placeholders, row, mapping) {
+  const values = {};
+  for (const ph of placeholders) {
+    const column = mapping[ph];
+    const v = column ? row[column] : undefined;
+    values[ph] = v === undefined || v === null ? '' : v;
+  }
+  return values;
+}
+
+// Preenche o template a partir dos valores já resolvidos (placeholder -> valor),
+// escapando na saída. Usado tanto na geração quanto no permalink /s/:id.
+function fillResolved(html, values) {
   return html.replace(PLACEHOLDER_RE, (full, name) => {
-    const column = mapping[name];
-    if (!column) return '';
-    const value = row[column];
-    if (value === undefined || value === null) return '';
-    return escapeHtml(value);
+    const v = values[name];
+    return v === undefined || v === null ? '' : escapeHtml(v);
   });
 }
 
-// Renderiza todas as assinaturas. labelColumn define o rótulo exibido na UI.
-function renderAll(html, rows, mapping, labelColumn) {
-  return rows.map((row, index) => {
-    const label = labelColumn && row[labelColumn] != null && String(row[labelColumn]).trim()
-      ? String(row[labelColumn])
-      : `Colaborador ${index + 1}`;
-    return { index, label, html: fillTemplate(html, row, mapping) };
-  });
+// Rótulo exibido na UI para uma linha (coluna escolhida como "nome", ou fallback).
+function rowLabel(row, index, labelColumn) {
+  return labelColumn && row[labelColumn] != null && String(row[labelColumn]).trim()
+    ? String(row[labelColumn])
+    : `Colaborador ${index + 1}`;
 }
 
-module.exports = { normalize, autoMapping, fillTemplate, renderAll, escapeHtml };
+export { normalize, autoMapping, escapeHtml, resolveValues, fillResolved, rowLabel };
