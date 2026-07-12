@@ -14,6 +14,9 @@ const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 
 const zip = new JSZip();
 zip.file('word/document.xml', documentXml);
+// placeholder fora do corpo: mammoth não vê, o scan de headers/footers vê
+zip.file('word/header1.xml', `<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:p><w:r><w:t>{{setor}}</w:t></w:r></w:p></w:hdr>`);
 zip.file('[Content_Types].xml', '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>');
 const raw = await zip.generateAsync({ type: 'nodebuffer' });
 
@@ -23,15 +26,18 @@ const normXml = await (await JSZip.loadAsync(normalized)).file('word/document.xm
 assert.ok(normXml.includes('{{cargo}}'), 'placeholder quebrado deve ser juntado');
 assert.ok(normXml.includes('{{nome}}'), 'placeholder inteiro segue intacto');
 
-// extractDocxPlaceholders acha os dois (via mammoth)
+// extractDocxPlaceholders acha corpo (mammoth) e cabeçalho (scan)
 const placeholders = await extractDocxPlaceholders(normalized);
-assert.deepStrictEqual([...placeholders].sort(), ['cargo', 'nome']);
+assert.deepStrictEqual([...placeholders].sort(), ['cargo', 'nome', 'setor']);
 
-// fillDocx substitui e escapa XML
-const filled = await fillDocx(normalized, { nome: 'Ana & Cia <Dev>', cargo: 'Design' });
-const filledXml = await (await JSZip.loadAsync(filled)).file('word/document.xml').async('string');
+// fillDocx substitui e escapa XML, inclusive no cabeçalho
+const filled = await fillDocx(normalized, { nome: 'Ana & Cia <Dev>', cargo: 'Design', setor: 'TI' });
+const filledZip = await JSZip.loadAsync(filled);
+const filledXml = await filledZip.file('word/document.xml').async('string');
 assert.ok(filledXml.includes('Ana &amp; Cia &lt;Dev&gt;'), 'valor deve ser XML-escaped');
 assert.ok(filledXml.includes('Design'));
 assert.ok(!/\{\{/.test(filledXml), 'nenhum placeholder deve sobrar');
+const headerXml = await filledZip.file('word/header1.xml').async('string');
+assert.ok(headerXml.includes('TI') && !/\{\{/.test(headerXml), 'cabeçalho também é preenchido');
 
 console.log('docx.test.js OK');

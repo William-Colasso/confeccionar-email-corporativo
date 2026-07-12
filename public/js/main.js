@@ -2,6 +2,8 @@
 
 import { listTemplates, uploadData, render } from './api.js';
 import { copyHtml } from './clipboard.js';
+import { renderDocxContent } from './docx-render.js';
+import { toast, escapeAttr } from './ui.js';
 
 const state = {
   templateId: null,
@@ -13,15 +15,6 @@ const state = {
 };
 
 const $ = (id) => document.getElementById(id);
-
-function toast(message, isError = false) {
-  const el = $('toast');
-  el.textContent = message;
-  el.classList.toggle('error', isError);
-  el.hidden = false;
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => { el.hidden = true; }, 2600);
-}
 
 function enableStep(sectionId, enabled) {
   $(sectionId).classList.toggle('disabled', !enabled);
@@ -36,22 +29,16 @@ async function copySignature(html, label) {
   }
 }
 
-// ---- Assinaturas .docx (renderizadas no navegador pelo docx-preview) ----
-
-// Renderiza o docx preenchido dentro de `el` e devolve só o HTML do CONTEÚDO —
-// sem o "papel" (a <section class="docx"> traz tamanho/margens da página).
-async function renderDocxInto(fileUrl, el) {
-  const blob = await (await fetch(fileUrl)).blob();
-  el.innerHTML = '';
-  await window.docx.renderAsync(blob, el, null, { inWrapper: false });
-  const section = el.querySelector('section.docx');
-  return section ? section.innerHTML : el.innerHTML;
+// Assinatura .docx: renderiza uma vez (docx-preview) e cacheia o HTML em
+// sig.html — depois disso ela se comporta como uma assinatura HTML comum.
+async function docxHtml(sig) {
+  if (!sig.html) sig.html = await renderDocxContent(sig.fileUrl);
+  return sig.html;
 }
 
 async function copyDocxSignature(sig) {
   try {
-    const html = await renderDocxInto(sig.fileUrl, document.createElement('div'));
-    await copySignature(html, sig.label);
+    await copySignature(await docxHtml(sig), sig.label);
   } catch {
     toast('Não foi possível renderizar o .docx.', true);
   }
@@ -197,7 +184,9 @@ function showIndividual(index) {
   const sig = state.signatures.find((s) => s.index === index);
   if (!sig) return;
   if (sig.type === 'docx') {
-    renderDocxInto(sig.fileUrl, $('preview-large'))
+    $('preview-large').innerHTML = '';
+    docxHtml(sig)
+      .then((html) => { $('preview-large').innerHTML = html; })
       .catch(() => toast('Não foi possível renderizar o .docx.', true));
   } else {
     $('preview-large').innerHTML = sig.html;
@@ -219,8 +208,10 @@ function buildSignatureList() {
     const mini = document.createElement('div');
     mini.className = 'sig-mini';
     if (sig.type === 'docx') {
-      // ponytail: sem mini-preview de docx nos cards — renderizar N docx é pesado.
-      mini.innerHTML = '<span class="tag">.docx</span>';
+      mini.textContent = 'Renderizando…';
+      docxHtml(sig)
+        .then((html) => { mini.innerHTML = html; })
+        .catch(() => { mini.textContent = 'Falha ao renderizar o .docx.'; });
     } else {
       mini.innerHTML = sig.html;
     }
@@ -280,9 +271,5 @@ $('btn-copy-individual').addEventListener('click', () => {
   if (sig.type === 'docx') copyDocxSignature(sig);
   else copySignature(sig.html, sig.label);
 });
-
-function escapeAttr(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-}
 
 loadTemplates();

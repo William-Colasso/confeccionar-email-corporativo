@@ -1,18 +1,10 @@
 'use strict';
 
 import { listTemplates, uploadTemplate, renameTemplate, deleteTemplate } from './api.js';
+import { toast, escapeAttr } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
 let templates = []; // lista em memória (para o aviso de sobrescrita)
-
-function toast(message, isError = false) {
-  const el = $('toast');
-  el.textContent = message;
-  el.classList.toggle('error', isError);
-  el.hidden = false;
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => { el.hidden = true; }, 2600);
-}
 
 // Mesma normalização do servidor (render.js): p/ o aviso de sobrescrita bater
 // com o upsert por nome.
@@ -144,10 +136,6 @@ function button(text, className, onClick) {
   b.textContent = text;
   b.addEventListener('click', () => onClick(b));
   return b;
-}
-
-function escapeAttr(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
 load();
