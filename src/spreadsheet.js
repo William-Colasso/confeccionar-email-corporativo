@@ -1,11 +1,15 @@
-'use strict';
+// Lê os dados dos colaboradores e devolve { columns, rows } (rows = objetos
+// { coluna: valor }).
+//
+// Formatos de entrada ficam num registro (extensão -> parser). Cada parser
+// recebe o Buffer e devolve { columns, rows }. Adicionar JSON, por exemplo:
+//   json: (buf) => { const arr = JSON.parse(buf.toString('utf8'));
+//                    return { columns: Object.keys(arr[0] || {}), rows: arr }; }
 
-// Lê uma planilha (.xlsx ou .csv) a partir de um Buffer e devolve as colunas
-// (cabeçalho) e as linhas como objetos { coluna: valor }.
+import xlsx from 'xlsx';
 
-const xlsx = require('xlsx');
-
-function parseSpreadsheet(buffer) {
+// SheetJS lê .xlsx, .xls e .csv a partir do mesmo Buffer.
+function parseXlsx(buffer) {
   const workbook = xlsx.read(buffer, { type: 'buffer' });
   const firstSheetName = workbook.SheetNames[0];
   if (!firstSheetName) {
@@ -23,4 +27,19 @@ function parseSpreadsheet(buffer) {
   return { columns, rows };
 }
 
-module.exports = { parseSpreadsheet };
+const DATA_FORMATS = {
+  xlsx: parseXlsx,
+  xls: parseXlsx,
+  csv: parseXlsx,
+};
+
+function parseData(filename, buffer) {
+  const m = /\.([a-z0-9]+)$/i.exec(filename || '');
+  const format = m ? m[1].toLowerCase() : '';
+  // ponytail: extensão desconhecida cai no xlsx, que sabe farejar o conteúdo
+  // binário; troque por throw se quiser rejeitar formatos não registrados.
+  const parser = DATA_FORMATS[format] || parseXlsx;
+  return parser(buffer);
+}
+
+export { parseData, DATA_FORMATS };
