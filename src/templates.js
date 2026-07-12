@@ -29,11 +29,15 @@ function readAll() {
 
 // Upsert por nome normalizado: enviar um template com nome equivalente
 // sobrescreve o existente (mantém o mesmo id).
-function createTemplate({ name, html, placeholders }) {
+function createTemplate({ name, html, placeholders, type, docx }) {
   fs.mkdirSync(DIR, { recursive: true });
   const existing = readAll().find((t) => normalize(t.name) === normalize(name));
   const id = existing ? existing.id : crypto.randomBytes(9).toString('base64url');
   const record = { id, name, html, placeholders, updatedAt: Date.now() };
+  if (type === 'docx') {
+    record.type = 'docx';
+    record.docx = docx.toString('base64'); // binário do .docx normalizado
+  }
   fs.writeFileSync(fileFor(id), JSON.stringify(record), 'utf8');
   return { id, name, placeholders };
 }
@@ -51,7 +55,7 @@ function getTemplate(id) {
 function listTemplates() {
   return readAll()
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-    .map((t) => ({ id: t.id, name: t.name, placeholders: t.placeholders }));
+    .map((t) => ({ id: t.id, name: t.name, placeholders: t.placeholders, type: t.type }));
 }
 
 function renameTemplate(id, name) {
