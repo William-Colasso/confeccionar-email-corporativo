@@ -4,7 +4,7 @@
 // Cada entrada guarda o HTML compilado do template, os placeholders detectados
 // e (depois do passo 2) as linhas da planilha.
 
-const crypto = require('crypto');
+import crypto from 'node:crypto';
 
 const TTL_MS = 1000 * 60 * 60; // 1 hora
 const store = new Map();
@@ -39,4 +39,4 @@ function createEntry(data) {
   return token;
 }
 
-module.exports = { createEntry, set, get };
+export { createEntry, set, get };
