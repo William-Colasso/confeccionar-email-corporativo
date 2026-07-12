@@ -2,7 +2,7 @@
   "name": "confeccionar-email-corporativo",
   "version": "1.0.0",
   "description": "Gerador de assinaturas de e-mail corporativo a partir de template MJML/HTML e planilha Excel/CSV",
-  "type": "commonjs",
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

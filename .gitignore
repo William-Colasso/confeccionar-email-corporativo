@@ -1,3 +1,6 @@
+# Dados de runtime (permalinks de assinatura gravados por src/shares.js)
+data/
+
 # Logs
 logs
 *.log
