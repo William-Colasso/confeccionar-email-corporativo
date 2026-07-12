@@ -10,16 +10,16 @@
   <header>
     <h1>Gerador de Assinaturas de E-mail Corporativo</h1>
     <p class="subtitle">Template MJML/HTML + planilha Excel/CSV → assinatura pronta para o Outlook</p>
+    <nav class="nav"><a href="index.html" class="active">Gerar assinaturas</a> · <a href="templates.html">Templates</a></nav>
   </header>
 
   <main>
     <!-- Passo 1: Template -->
     <section class="step" id="step-template">
       <h2><span class="badge">1</span> Template</h2>
-      <p>Envie o arquivo <code>.mjml</code> ou <code>.html</code>. Use campos no formato
-        <code>{{nome}}</code>, <code>{{cargo}}</code>, etc.</p>
-      <input type="file" id="template-file" accept=".mjml,.html,.htm" />
-      <button id="btn-template">Carregar template</button>
+      <p>Escolha um template salvo. Para adicionar ou editar, use a
+        <a href="templates.html">página de templates</a>.</p>
+      <select id="template-select"><option value="">Carregando…</option></select>
       <div class="result" id="template-result"></div>
     </section>
 
@@ -64,6 +64,6 @@
 
   <div class="toast" id="toast" hidden></div>
 
-  <script src="app.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>

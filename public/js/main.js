@@ -1,11 +1,15 @@
 'use strict';
 
+import { listTemplates, uploadData, render } from './api.js';
+import { copyHtml } from './clipboard.js';
+
 const state = {
-  token: null,
+  templateId: null,
   placeholders: [],
   columns: [],
   mapping: {},
   signatures: [],
+  templatesById: {},
 };
 
 const $ = (id) => document.getElementById(id);
@@ -23,47 +27,60 @@ function enableStep(sectionId, enabled) {
   $(sectionId).classList.toggle('disabled', !enabled);
 }
 
-// ---- Passo 1: Template ----
-$('btn-template').addEventListener('click', async () => {
-  const file = $('template-file').files[0];
-  if (!file) return toast('Selecione um arquivo de template.', true);
-
-  const form = new FormData();
-  form.append('file', file);
+async function copySignature(html, label) {
   try {
-    const res = await fetch('/api/template', { method: 'POST', body: form });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-
-    state.token = data.token;
-    state.placeholders = data.placeholders;
-
-    $('template-result').innerHTML =
-      `<div>Formato: <strong>${data.format.toUpperCase()}</strong>. Campos detectados:</div>` +
-      data.placeholders.map((p) => `<span class="tag">{{${p}}}</span>`).join('');
-
-    // Libera o passo 2
-    enableStep('step-data', true);
-    $('data-file').disabled = false;
-    $('btn-data').disabled = false;
-  } catch (err) {
-    toast(err.message || 'Erro ao carregar template.', true);
+    await copyHtml(html);
+    toast(`Assinatura de "${label}" copiada.`);
+  } catch {
+    toast('Não foi possível copiar automaticamente.', true);
   }
+}
+
+// ---- Passo 1: escolher template salvo ----
+async function loadTemplates() {
+  const sel = $('template-select');
+  try {
+    const { templates } = await listTemplates();
+    state.templatesById = Object.fromEntries(templates.map((t) => [t.id, t]));
+    if (templates.length === 0) {
+      sel.innerHTML = '<option value="">(nenhum template salvo)</option>';
+      $('template-result').innerHTML =
+        `<span class="tag warn">Nenhum template salvo. Crie um na <a href="templates.html">página de templates</a>.</span>`;
+      return;
+    }
+    sel.innerHTML = `<option value="">Selecione…</option>` +
+      templates.map((t) => `<option value="${t.id}">${escapeAttr(t.name)}</option>`).join('');
+  } catch (err) {
+    toast(err.message || 'Erro ao carregar templates.', true);
+  }
+}
+
+$('template-select').addEventListener('change', (e) => {
+  const t = state.templatesById[e.target.value];
+  if (!t) {
+    enableStep('step-data', false);
+    $('data-file').disabled = true;
+    $('btn-data').disabled = true;
+    $('template-result').innerHTML = '';
+    return;
+  }
+  state.templateId = t.id;
+  state.placeholders = t.placeholders;
+  $('template-result').innerHTML =
+    `<div>Campos deste template:</div>` +
+    t.placeholders.map((p) => `<span class="tag">{{${p}}}</span>`).join('');
+  enableStep('step-data', true);
+  $('data-file').disabled = false;
+  $('btn-data').disabled = false;
 });
 
 // ---- Passo 2: Planilha ----
 $('btn-data').addEventListener('click', async () => {
   const file = $('data-file').files[0];
   if (!file) return toast('Selecione uma planilha.', true);
-
-  const form = new FormData();
-  form.append('file', file);
-  form.append('token', state.token);
   try {
-    const res = await fetch('/api/data', { method: 'POST', body: form });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-
+    const data = await uploadData(file, state.templateId);
+    state.token = data.token;
     state.columns = data.columns;
     state.mapping = data.mapping;
 
@@ -81,7 +98,7 @@ function renderMappingTable(data) {
   const optionsFor = (selected) =>
     `<option value="">(vazio)</option>` +
     state.columns
-      .map((c) => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`)
+      .map((c) => `<option value="${escapeAttr(c)}" ${c === selected ? 'selected' : ''}>${escapeAttr(c)}</option>`)
       .join('');
 
   const rows = state.placeholders
@@ -90,7 +107,7 @@ function renderMappingTable(data) {
       const warn = col ? '' : 'class="warn"';
       return `<tr>
         <td><code>{{${ph}}}</code></td>
-        <td><select data-ph="${ph}">${optionsFor(col)}</select></td>
+        <td><select data-ph="${escapeAttr(ph)}">${optionsFor(col)}</select></td>
         <td ${warn}>${col ? '✓' : '⚠ sem coluna'}</td>
       </tr>`;
     })
@@ -108,7 +125,6 @@ function renderMappingTable(data) {
        <tbody>${rows}</tbody>
      </table>`;
 
-  // Atualiza o mapeamento quando o usuário troca uma coluna
   $('data-result').querySelectorAll('select[data-ph]').forEach((sel) => {
     sel.addEventListener('change', (e) => {
       const ph = e.target.dataset.ph;
@@ -127,28 +143,16 @@ function renderMappingTable(data) {
 
 function buildLabelColumnSelect() {
   const sel = $('label-column');
-  // Heurística: escolhe coluna parecida com "nome" se existir.
   const guess = state.columns.find((c) => /nome|name/i.test(c)) || state.columns[0];
   sel.innerHTML = state.columns
-    .map((c) => `<option value="${c}" ${c === guess ? 'selected' : ''}>${c}</option>`)
+    .map((c) => `<option value="${escapeAttr(c)}" ${c === guess ? 'selected' : ''}>${escapeAttr(c)}</option>`)
     .join('');
 }
 
 // ---- Passo 3: Render ----
 $('btn-render').addEventListener('click', async () => {
   try {
-    const res = await fetch('/api/render', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        token: state.token,
-        mapping: state.mapping,
-        labelColumn: $('label-column').value,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-
+    const data = await render(state.token, state.mapping, $('label-column').value);
     state.signatures = data.signatures;
     $('render-views').hidden = false;
     buildIndividualSelect();
@@ -191,11 +195,12 @@ function buildSignatureList() {
     mini.innerHTML = sig.html;
     info.appendChild(name);
     info.appendChild(mini);
+    if (sig.url) info.appendChild(buildLinkRow(sig));
 
     const btn = document.createElement('button');
     btn.className = 'copy';
     btn.textContent = 'Copiar';
-    btn.addEventListener('click', () => copyHtml(sig.html, sig.label));
+    btn.addEventListener('click', () => copySignature(sig.html, sig.label));
 
     card.appendChild(info);
     card.appendChild(btn);
@@ -203,61 +208,40 @@ function buildSignatureList() {
   });
 }
 
+// Linha com o permalink da assinatura e um botão "Copiar link".
+function buildLinkRow(sig) {
+  const fullUrl = location.origin + sig.url;
+  const row = document.createElement('div');
+  row.className = 'sig-link';
+  const a = document.createElement('a');
+  a.href = sig.url;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.textContent = fullUrl;
+  const copyLink = document.createElement('button');
+  copyLink.className = 'copy';
+  copyLink.textContent = 'Copiar link';
+  copyLink.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      toast('Link copiado.');
+    } catch {
+      toast('Não foi possível copiar o link.', true);
+    }
+  });
+  row.appendChild(a);
+  row.appendChild(copyLink);
+  return row;
+}
+
 $('btn-copy-individual').addEventListener('click', () => {
   const index = Number($('individual-select').value);
   const sig = state.signatures.find((s) => s.index === index);
-  if (sig) copyHtml(sig.html, sig.label);
+  if (sig) copySignature(sig.html, sig.label);
 });
-
-// Copia como HTML rico (text/html) + texto puro, pronto p/ colar no Outlook.
-async function copyHtml(html, label) {
-  try {
-    if (navigator.clipboard && window.ClipboardItem) {
-      const item = new ClipboardItem({
-        'text/html': new Blob([html], { type: 'text/html' }),
-        'text/plain': new Blob([htmlToText(html)], { type: 'text/plain' }),
-      });
-      await navigator.clipboard.write([item]);
-    } else {
-      await legacyCopy(html);
-    }
-    toast(`Assinatura de "${label}" copiada.`);
-  } catch (err) {
-    try {
-      await legacyCopy(html);
-      toast(`Assinatura de "${label}" copiada.`);
-    } catch (e) {
-      toast('Não foi possível copiar automaticamente.', true);
-    }
-  }
-}
-
-// Fallback: seleciona um nó com o HTML renderizado e usa execCommand('copy').
-function legacyCopy(html) {
-  return new Promise((resolve, reject) => {
-    const container = document.createElement('div');
-    container.style.position = 'fixed';
-    container.style.left = '-9999px';
-    container.innerHTML = html;
-    document.body.appendChild(container);
-    const range = document.createRange();
-    range.selectNodeContents(container);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-    const ok = document.execCommand('copy');
-    sel.removeAllRanges();
-    document.body.removeChild(container);
-    ok ? resolve() : reject(new Error('execCommand falhou'));
-  });
-}
-
-function htmlToText(html) {
-  const tmp = document.createElement('div');
-  tmp.innerHTML = html;
-  return tmp.textContent || '';
-}
 
 function escapeAttr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
+
+loadTemplates();

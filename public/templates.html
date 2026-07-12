@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Templates — Assinaturas de E-mail</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Templates</h1>
+    <p class="subtitle">Envie e gerencie os templates reutilizados na geração de assinaturas</p>
+    <nav class="nav"><a href="index.html">Gerar assinaturas</a> · <a href="templates.html" class="active">Templates</a></nav>
+  </header>
+
+  <main>
+    <section class="step">
+      <h2>Novo template</h2>
+      <p>Arquivo <code>.mjml</code> ou <code>.html</code> com campos <code>{{nome}}</code>,
+        <code>{{cargo}}</code>, etc.</p>
+      <input type="file" id="tpl-file" accept=".mjml,.html,.htm" />
+      <div class="field">
+        <label>Nome: <input type="text" id="tpl-name" placeholder="ex.: assinatura-vendas" /></label>
+      </div>
+      <div class="result" id="overwrite-warn"></div>
+      <button id="btn-upload">Salvar template</button>
+    </section>
+
+    <section class="step">
+      <h2>Salvos</h2>
+      <div class="template-list" id="template-list"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script type="module" src="js/templates-page.js"></script>
+</body>
+</html>

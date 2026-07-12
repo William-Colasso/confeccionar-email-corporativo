@@ -27,6 +27,9 @@ header {
 }
 header h1 { margin: 0 0 4px; font-size: 20px; font-weight: 700; }
 .subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.nav { margin-top: 10px; font-size: 14px; }
+.nav a { color: var(--muted); text-decoration: none; }
+.nav a.active { color: var(--text); font-weight: 700; }
 
 main {
   max-width: 900px;
@@ -79,6 +82,14 @@ button:hover { background: var(--accent-hover); }
 button:disabled { background: #bdbdbd; border-color: #bdbdbd; cursor: not-allowed; }
 button.copy { background: #fff; color: var(--text); border: 1px solid var(--border); }
 button.copy:hover { background: #f0f0f0; }
+button.danger { color: #8a1f1f; border-color: #e3a0a0; }
+button.danger:hover { background: #fbeaea; }
+
+.field { margin: 10px 0; }
+.field input[type="text"] { padding: 6px 8px; border: 1px solid var(--border); border-radius: 3px; font-size: 14px; min-width: 240px; }
+
+.template-list { display: flex; flex-direction: column; gap: 10px; }
+.tpl-actions { display: flex; gap: 8px; align-items: flex-start; }
 
 .result { margin-top: 14px; font-size: 14px; }
 .tag {
@@ -133,6 +144,15 @@ select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 3px; 
   overflow: hidden;
   transform-origin: top left;
 }
+.sig-card .sig-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.sig-card .sig-link a { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sig-card .sig-link button { padding: 3px 8px; font-size: 12px; }
 
 .toast {
   position: fixed;
