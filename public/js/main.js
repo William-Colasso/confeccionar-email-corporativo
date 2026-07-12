@@ -36,6 +36,27 @@ async function copySignature(html, label) {
   }
 }
 
+// ---- Assinaturas .docx (renderizadas no navegador pelo docx-preview) ----
+
+// Renderiza o docx preenchido dentro de `el` e devolve só o HTML do CONTEÚDO —
+// sem o "papel" (a <section class="docx"> traz tamanho/margens da página).
+async function renderDocxInto(fileUrl, el) {
+  const blob = await (await fetch(fileUrl)).blob();
+  el.innerHTML = '';
+  await window.docx.renderAsync(blob, el, null, { inWrapper: false });
+  const section = el.querySelector('section.docx');
+  return section ? section.innerHTML : el.innerHTML;
+}
+
+async function copyDocxSignature(sig) {
+  try {
+    const html = await renderDocxInto(sig.fileUrl, document.createElement('div'));
+    await copySignature(html, sig.label);
+  } catch {
+    toast('Não foi possível renderizar o .docx.', true);
+  }
+}
+
 // ---- Passo 1: escolher template salvo ----
 async function loadTemplates() {
   const sel = $('template-select');
@@ -175,7 +196,12 @@ function buildIndividualSelect() {
 function showIndividual(index) {
   const sig = state.signatures.find((s) => s.index === index);
   if (!sig) return;
-  $('preview-large').innerHTML = sig.html;
+  if (sig.type === 'docx') {
+    renderDocxInto(sig.fileUrl, $('preview-large'))
+      .catch(() => toast('Não foi possível renderizar o .docx.', true));
+  } else {
+    $('preview-large').innerHTML = sig.html;
+  }
 }
 
 function buildSignatureList() {
@@ -192,7 +218,12 @@ function buildSignatureList() {
     name.textContent = sig.label;
     const mini = document.createElement('div');
     mini.className = 'sig-mini';
-    mini.innerHTML = sig.html;
+    if (sig.type === 'docx') {
+      // ponytail: sem mini-preview de docx nos cards — renderizar N docx é pesado.
+      mini.innerHTML = '<span class="tag">.docx</span>';
+    } else {
+      mini.innerHTML = sig.html;
+    }
     info.appendChild(name);
     info.appendChild(mini);
     if (sig.url) info.appendChild(buildLinkRow(sig));
@@ -200,7 +231,8 @@ function buildSignatureList() {
     const btn = document.createElement('button');
     btn.className = 'copy';
     btn.textContent = 'Copiar';
-    btn.addEventListener('click', () => copySignature(sig.html, sig.label));
+    btn.addEventListener('click', () =>
+      sig.type === 'docx' ? copyDocxSignature(sig) : copySignature(sig.html, sig.label));
 
     card.appendChild(info);
     card.appendChild(btn);
@@ -231,13 +263,22 @@ function buildLinkRow(sig) {
   });
   row.appendChild(a);
   row.appendChild(copyLink);
+  if (sig.fileUrl) {
+    const dl = document.createElement('a');
+    dl.href = sig.fileUrl;
+    dl.className = 'copy';
+    dl.textContent = 'Baixar .docx';
+    row.appendChild(dl);
+  }
   return row;
 }
 
 $('btn-copy-individual').addEventListener('click', () => {
   const index = Number($('individual-select').value);
   const sig = state.signatures.find((s) => s.index === index);
-  if (sig) copySignature(sig.html, sig.label);
+  if (!sig) return;
+  if (sig.type === 'docx') copyDocxSignature(sig);
+  else copySignature(sig.html, sig.label);
 });
 
 function escapeAttr(s) {

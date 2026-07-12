@@ -9,6 +9,7 @@ import {
   createTemplate, getTemplate, listTemplates, renameTemplate, deleteTemplate,
 } from './src/templates.js';
 import { compileTemplate, extractPlaceholders } from './src/template.js';
+import { extractDocxPlaceholders, fillDocx } from './src/docx.js';
 import { parseData } from './src/spreadsheet.js';
 import { autoMapping, resolveValues, fillResolved, rowLabel } from './src/render.js';
 
@@ -33,16 +34,20 @@ app.get('/api/templates', (req, res) => {
 });
 
 // Envia um template (.mjml/.html), compila e salva (upsert por nome).
-app.post('/api/templates', upload.single('file'), (req, res) => {
+app.post('/api/templates', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
-    const { html } = compileTemplate(req.file.originalname, req.file.buffer);
-    const placeholders = extractPlaceholders(html);
+    const compiled = await compileTemplate(req.file.originalname, req.file.buffer);
+    const placeholders = compiled.type === 'docx'
+      ? await extractDocxPlaceholders(compiled.docx)
+      : extractPlaceholders(compiled.html);
     if (placeholders.length === 0) {
       return res.status(400).json({ error: 'Nenhum campo {{coluna}} encontrado no template.' });
     }
     const name = (req.body.name && req.body.name.trim()) || baseName(req.file.originalname);
-    const saved = createTemplate({ name, html, placeholders });
+    const saved = createTemplate({
+      name, html: compiled.html, placeholders, type: compiled.type, docx: compiled.docx,
+    });
     res.json(saved);
   } catch (err) {
     res.status(500).json({ error: 'Falha ao processar o template: ' + err.message });
@@ -104,7 +109,10 @@ app.post('/api/render', (req, res) => {
       const label = rowLabel(row, index, labelColumn);
       const values = resolveValues(template.placeholders, row, finalMapping);
       const shareId = createShare({ templateId: template.id, values, label });
-      return { index, label, html: fillResolved(template.html, values), shareId, url: `/s/${shareId}` };
+      const base = { index, label, shareId, url: `/s/${shareId}` };
+      return template.type === 'docx'
+        ? { ...base, type: 'docx', fileUrl: `/s/${shareId}/file` }
+        : { ...base, html: fillResolved(template.html, values) };
     });
     res.json({ signatures });
   } catch (err) {
@@ -119,13 +127,39 @@ app.get('/s/:id', (req, res) => {
   const template = share && getTemplate(share.templateId);
   if (!share || !template) return res.status(404).send('Assinatura não encontrada (template removido?).');
 
-  const html = fillResolved(template.html, share.values);
   const label = String(share.label || 'Assinatura')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  res.type('html').send(`<!DOCTYPE html>
+  const head = `<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Assinatura — ${label}</title><link rel="stylesheet" href="/styles.css" /></head>
+<title>Assinatura — ${label}</title><link rel="stylesheet" href="/styles.css" /></head>`;
+
+  // Template .docx: exibe via docx-preview (nada de converter para HTML no servidor).
+  if (template.type === 'docx') {
+    return res.type('html').send(`${head}
+<body><main><section class="step">
+<h2>Assinatura de ${label}</h2>
+<button class="copy" id="btn-copy">Copiar assinatura</button>
+<a class="copy" id="btn-download" href="/s/${req.params.id}/file" download>Baixar .docx</a>
+<div class="preview-large" id="sig"></div>
+</section></main><div class="toast" id="toast" hidden></div>
+<script src="/vendor/jszip.min.js"></script>
+<script src="/vendor/docx-preview.min.js"></script>
+<script type="module">
+import { copyHtml } from '/js/clipboard.js';
+const container = document.getElementById('sig');
+const blob = await fetch('/s/${req.params.id}/file').then((r) => r.blob());
+await docx.renderAsync(blob, container, null, { inWrapper: false });
+document.getElementById('btn-copy').addEventListener('click', () => {
+  // Copia só o conteúdo do documento, sem o "papel" (section com tamanho/margens).
+  const section = container.querySelector('section.docx');
+  copyHtml(section ? section.innerHTML : container.innerHTML);
+});
+</script></body></html>`);
+  }
+
+  const html = fillResolved(template.html, share.values);
+  res.type('html').send(`${head}
 <body><main><section class="step">
 <h2>Assinatura de ${label}</h2>
 <button class="copy" id="btn-copy">Copiar assinatura</button>
@@ -137,6 +171,26 @@ const html = document.getElementById('sig').innerHTML;
 document.getElementById('btn-copy').addEventListener('click', () => copyHtml(html, ${JSON.stringify(label)}));
 </script></body></html>`);
 });
+
+// Arquivo .docx preenchido on-demand (download e fonte do preview docx-preview).
+app.get('/s/:id/file', async (req, res) => {
+  const share = getShare(req.params.id);
+  const template = share && getTemplate(share.templateId);
+  if (!share || !template || template.type !== 'docx') {
+    return res.status(404).send('Arquivo não encontrado.');
+  }
+  const buffer = await fillDocx(Buffer.from(template.docx, 'base64'), share.values);
+  const safeName = String(share.label || 'assinatura').replace(/[^\w.-]+/g, '_');
+  res.type('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeName}.docx"`);
+  res.send(buffer);
+});
+
+// Vendors do preview de .docx, servidos direto de node_modules (sem build step).
+app.get('/vendor/jszip.min.js', (req, res) =>
+  res.sendFile(path.join(__dirname, 'node_modules', 'jszip', 'dist', 'jszip.min.js')));
+app.get('/vendor/docx-preview.min.js', (req, res) =>
+  res.sendFile(path.join(__dirname, 'node_modules', 'docx-preview', 'dist', 'docx-preview.min.js')));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
